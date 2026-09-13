@@ -1,0 +1,15 @@
+# Build outputs
+bin/
+obj/
+
+# Resultados de teste e traces do Playwright
+TestResults/
+playwright-traces/
+
+# Editor / OS
+.vs/
+*.user
+.DS_Store
+
+# Artefato do instalador de dependências do navegador (apt), não faz parte do projeto
+packages-microsoft-prod.rpm
