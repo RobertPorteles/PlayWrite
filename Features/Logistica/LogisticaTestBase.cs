@@ -57,8 +57,13 @@ public abstract class LogisticaTestBase : E2ETestBase
 
         Sessao = await login.LerSessaoAsync();
         Assert.That(Sessao.Token, Is.Not.Null.And.Not.Empty, "O front não gravou o token em localStorage.sessionApp.");
-        Assert.That(Sessao.TipoOperacaoId, Is.EqualTo(1).Or.EqualTo(2),
-            "A empresa logada não tem tipo de operação (Passageiro/Carga) definido; o wizard de Programação não funciona sem ele.");
+        if (Sessao.TipoOperacaoId is not (1 or 2))
+        {
+            Assert.Ignore(
+                "A empresa logada não tem tipo de operação (Passageiro/Carga) definido; o wizard de Programação não funciona sem ele. " +
+                "Defina Empresa.TipoOperacaoId (1=Passageiro, 2=Carga) na empresa de teste.");
+        }
+
         return Sessao;
     }
 }

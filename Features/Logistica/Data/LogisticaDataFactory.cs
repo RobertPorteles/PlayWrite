@@ -107,8 +107,7 @@ public static class LogisticaDataFactory
         ["pais"] = "Brasil",
         ["latitude"] = ponto.Latitude,
         ["longitude"] = ponto.Longitude,
-        ["raioEntradaMetros"] = 70,
-        ["raioSaidaMetros"] = 70,
+        ["raioMetros"] = 70,
     };
 
     /// <summary>Endereço de item da solicitação copiado de um EnderecoLogistica já criado.</summary>
@@ -126,8 +125,7 @@ public static class LogisticaDataFactory
         ["pais"] = endereco["pais"].ComoTexto(),
         ["latitude"] = endereco["latitude"]!.GetValue<double>(),
         ["longitude"] = endereco["longitude"]!.GetValue<double>(),
-        ["raioEntradaMetros"] = 70,
-        ["raioSaidaMetros"] = 70,
+        ["raioMetros"] = 70,
     };
 
     public static JsonObject SolicitacaoLogistica(int tipoOperacao, long clienteId, long? centroCustoId, long? solicitanteId,

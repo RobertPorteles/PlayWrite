@@ -56,23 +56,11 @@ public sealed class ProgramacaoWizard(IPage page)
         var passo = PassoAtivo;
         await _vuetify.SelecionarAutocompleteAsync(passo, apoio.Carga ? "Carga" : "Passageiro", apoio.NomeItem);
 
-        // CONFIRMAR inclui o item e o torna ativo, exibindo Origem/Destino. Se o item não ficar ativo, um novo clique
-        // cai no caminho "já existe" do front, que reativa o mesmo item sem duplicá-lo.
+        // CONFIRMAR inclui o item e o torna ativo, exibindo Origem/Destino.
         var confirmar = passo.Locator(".confirmar-passageiro-btn").First;
-        var campoOrigem = Vuetify.Campo(passo, "Origem");
-        for (var tentativa = 1; ; tentativa++)
-        {
-            await Expect(confirmar).ToBeEnabledAsync();
-            await confirmar.ClickAsync();
-            try
-            {
-                await Expect(campoOrigem).ToBeVisibleAsync(new() { Timeout = 5_000 });
-                break;
-            }
-            catch (PlaywrightException) when (tentativa < 3)
-            {
-            }
-        }
+        await Expect(confirmar).ToBeEnabledAsync();
+        await confirmar.ClickAsync();
+        await Expect(Vuetify.Campo(passo, "Origem")).ToBeVisibleAsync();
 
         await Expect(Card.Locator(".v-chip", new() { HasText = apoio.NomeItem })).ToHaveCountAsync(1);
 

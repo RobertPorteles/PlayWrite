@@ -62,10 +62,21 @@ public sealed class Vuetify(IPage page)
             return null;
         }
 
-        var texto = (await primeira.InnerTextAsync()).Trim();
+        var texto = await TituloDaOpcaoAsync(primeira);
         await SelecionarOpcaoAsync(campo, primeira, textoParaRedigitar: null);
         await Expect(Container(escopo, label)).ToContainTextAsync(texto);
         return texto;
+    }
+
+    /// <summary>
+    /// Só o título da opção. A opção pode ter subtítulo (item-props/subtitle, como o motivo de indisponibilidade
+    /// do veículo no wizard de Programação), e o subtítulo não vai para o campo quando a opção é selecionada.
+    /// </summary>
+    private static async Task<string> TituloDaOpcaoAsync(ILocator opcao)
+    {
+        var titulo = opcao.Locator(".v-list-item-title");
+        var alvo = await titulo.CountAsync() > 0 ? titulo.First : opcao;
+        return (await alvo.InnerTextAsync()).Trim();
     }
 
     /// <summary>Clica numa ação de menu (ex.: "Editar", "Excluir") já aberto.</summary>

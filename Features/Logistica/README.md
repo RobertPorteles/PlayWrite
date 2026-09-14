@@ -12,7 +12,7 @@ helpers de Vuetify e SweetAlert) fica em `Shared/` e serve para outras features.
 - API rodando (padrão `http://localhost:5225`, perfil `CCO.Api.Local`).
 - Usuário com acesso à logística: master, ou com as permissões de logística, incluindo **Viagem Logística (10468000)**, necessária para finalizar/cancelar.
 - A empresa precisa ter tipo de operação definido (`Empresa.TipoOperacaoId` = 1 Passageiro ou 2 Carga). Com o campo vazio,
-  o wizard de Programação recusa salvar e os testes falham logo no login com essa explicação.
+  o wizard de Programação recusa salvar; os testes de logística são ignorados logo no login, com essa explicação no resultado.
 - Para os cenários com ordem de serviço, a empresa precisa ter pelo menos um veículo e um motorista. Sem eles esses testes são ignorados, com a explicação no resultado.
 - Chromium do Playwright instalado: `pwsh bin/Debug/net10.0/playwright.ps1 install chromium` ou `npx playwright install chromium`.
 
