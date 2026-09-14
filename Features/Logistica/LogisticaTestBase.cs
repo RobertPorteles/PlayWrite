@@ -22,9 +22,15 @@ public abstract class LogisticaTestBase : E2ETestBase
 
     protected SessaoApp? Sessao { get; private set; }
 
-    /// <summary>Empresa logada opera com Carga (tipoOperacaoId = 2); caso contrário, Passageiro (1).</summary>
+    /// <summary>
+    /// Empresa logada opera com Carga (tipoOperacaoId = 2); caso contrário, Passageiro (1).
+    /// Vem da sessão do front quando houve login pela UI, senão do login da API — assim os testes
+    /// que só usam API não precisam abrir o navegador.
+    /// </summary>
     protected bool EmpresaCarga =>
-        (Sessao?.TipoOperacaoId ?? throw new InvalidOperationException("Chame LoginNaUiAsync antes de usar EmpresaCarga.")) == 2;
+        (Sessao?.TipoOperacaoId
+         ?? Api?.TipoOperacaoId
+         ?? throw new InvalidOperationException("A empresa logada não tem tipo de operação definido.")) == 2;
 
     [SetUp]
     public async Task PrepararLogisticaAsync()

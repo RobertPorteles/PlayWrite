@@ -12,13 +12,17 @@ public sealed class ApiClient : IAsyncDisposable
 {
     private readonly IAPIRequestContext _request;
 
-    private ApiClient(IAPIRequestContext request, string token)
+    private ApiClient(IAPIRequestContext request, string token, int? tipoOperacaoId)
     {
         _request = request;
         Token = token;
+        TipoOperacaoId = tipoOperacaoId;
     }
 
     public string Token { get; }
+
+    /// <summary>Tipo de operação da empresa logada (1 Passageiro, 2 Carga), como o login devolve ao front.</summary>
+    public int? TipoOperacaoId { get; }
 
     /// <summary>
     /// Autentica como o front: <c>login</c> e, se o usuário tiver várias empresas, <c>login/empresa</c>.
@@ -48,7 +52,11 @@ public sealed class ApiClient : IAsyncDisposable
             await anonimo.DisposeAsync();
         }
 
-        return new ApiClient(await NovoContextoAsync(playwright, token), token);
+        // O login devolve só o token; os dados da empresa vêm do RetrieveSessionApp, como o front também faz.
+        var contexto = await NovoContextoAsync(playwright, token);
+        var sessao = (await EnviarAsync(contexto, "GET", "v1/Autenticador/RetrieveSessionApp/Sistema")).Json;
+
+        return new ApiClient(contexto, token, sessao?["empresa"]?["tipoOperacaoId"]?.GetValue<int>());
     }
 
     public async Task<JsonNode?> GetAsync(string caminho, string? include = null) =>
