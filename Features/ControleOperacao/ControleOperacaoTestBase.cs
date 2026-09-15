@@ -1,5 +1,6 @@
 using System.Text.Json.Nodes;
 using PlaywrightTests.Features.ControleOperacao.Data;
+using PlaywrightTests.Features.Logistica.Data;
 using PlaywrightTests.Shared;
 using PlaywrightTests.Shared.Api;
 using PlaywrightTests.Shared.Config;
@@ -67,6 +68,10 @@ public abstract class ControleOperacaoTestBase : E2ETestBase
             ["nome"] = nome,
             ["ativo"] = ativo,
             ["funcaoId"] = funcaoId,
+            // FuncionarioService.Post recusa CPF/login repetidos comparando com ==, então null colide com
+            // qualquer funcionário já cadastrado sem esses campos.
+            ["cpf"] = LogisticaDataFactory.GerarCpf(),
+            ["login"] = nome,
             // Sem senha o POST estoura 500 ("Value cannot be null. (Parameter 'password')") em vez de 400.
             ["senha"] = "E2E@Teste1",
         };

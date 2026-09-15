@@ -8,8 +8,11 @@ public static class ControleOperacaoRecursos
     /// <summary>Lista estrita: Funcionario.Ativo + função de motorista.</summary>
     public const string MotoristasAtivos = $"{Funcionario}/ObterMotoristasAtivos";
 
-    /// <summary>Autocomplete por termo: filtra função, mas não Ativo.</summary>
+    /// <summary>Autocomplete por termo: filtra função; Ativo só com somenteAtivos=true.</summary>
     public const string AutoCompleteMotorista = $"{Funcionario}/AutoCompleteMotorista";
+
+    /// <summary>Autocomplete do cadastro de viagem: só motoristas ativos, marcando a disponibilidade no período.</summary>
+    public const string AutoCompleteFuncionarioDisponivel = $"{Funcionario}/AutoCompleteFuncionarioDisponivel";
 
     public const string Vincular = "v1/ControleOperacao/VinculoVeiculo/Vincular";
 

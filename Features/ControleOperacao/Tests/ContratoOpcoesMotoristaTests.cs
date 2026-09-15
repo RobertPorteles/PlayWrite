@@ -12,28 +12,64 @@ namespace PlaywrightTests.Features.ControleOperacao.Tests;
 public class ContratoOpcoesMotoristaTests : ControleOperacaoTestBase
 {
     /// <summary>
-    /// AutoCompleteMotorista filtra a função mas não o Ativo (FuncionarioRepository.AutoCompleteMotorista),
-    /// enquanto Vincular recusa motorista inativo (VinculoVeiculoService). As telas de Alocação e de
-    /// Deslocamento ainda usam esse autocomplete, então oferecem alguém que o save rejeita.
+    /// Contrato do endpoint estrito em si: precisa refletir Funcionario.Ativo, não só a função de motorista.
+    /// Os outros testes desta classe comparam o autocomplete contra esta lista assumindo que ela já está
+    /// correta — sem este teste, um bug aqui passaria despercebido.
     /// </summary>
     [Test]
-    public async Task AutoCompleteDeMotoristaNaoDeveOferecerMotoristaInativo()
+    public async Task ObterMotoristasAtivosDeveFiltrarPorFuncionarioAtivo()
     {
         var funcaoMotoristaId = await ObterFuncaoMotoristaIdAsync();
-        var nome = Nome("MotoristaInativo");
-        var inativo = await CriarFuncionarioAsync(nome, funcaoMotoristaId, ativo: false);
+        var ativo = await CriarFuncionarioAsync(Nome("MotoristaAtivo"), funcaoMotoristaId, ativo: true);
+        var inativo = await CriarFuncionarioAsync(Nome("MotoristaInativo"), funcaoMotoristaId, ativo: false);
 
-        var oferecidos = (await Api.GetAsync($"{ControleOperacaoRecursos.AutoCompleteMotorista}?q={Uri.EscapeDataString(nome)}"))?.AsArray();
-        var idsOferecidos = (oferecidos ?? []).Select(x => x!["id"].ComoTexto()).ToList();
+        var motoristas = (await Api.GetAsync(ControleOperacaoRecursos.MotoristasAtivos))?.AsArray() ?? [];
+        var ids = motoristas.Select(x => x!["id"].ComoTexto()).ToList();
 
-        Assert.That(idsOferecidos, Does.Not.Contain(inativo["id"].ComoTexto()),
-            "O autocomplete ofereceu um motorista inativo. Quem escolher esse nome recebe 400 " +
-            "(\"O motorista X está inativo.\") só depois de salvar.");
+        Assert.Multiple(() =>
+        {
+            Assert.That(ids, Does.Contain(ativo["id"].ComoTexto()),
+                "O motorista ativo recém-criado deveria aparecer em ObterMotoristasAtivos.");
+            Assert.That(ids, Does.Not.Contain(inativo["id"].ComoTexto()),
+                "ObterMotoristasAtivos ofereceu um motorista inativo — o endpoint não está filtrando por Funcionario.Ativo.");
+        });
     }
 
-    /// <summary>Contrato geral: o autocomplete não pode oferecer ninguém fora da lista estrita de motoristas ativos.</summary>
+    /// <summary>
+    /// Com somenteAtivos=true (diálogo de alocar veículo) o autocomplete não pode oferecer motorista inativo:
+    /// o Alocar não valida Ativo, então a alocação seria gravada com alguém desligado.
+    /// </summary>
     [Test]
-    public async Task TodaOpcaoDoAutoCompleteDeveEstarEntreOsMotoristasAtivos()
+    public async Task AutoCompleteSomenteAtivosNaoDeveOferecerMotoristaInativo()
+    {
+        var nome = Nome("MotoristaInativo");
+        var inativo = await CriarFuncionarioAsync(nome, await ObterFuncaoMotoristaIdAsync(), ativo: false);
+
+        var ids = await BuscarIdsNoAutoCompleteAsync(nome, somenteAtivos: true);
+
+        Assert.That(ids, Does.Not.Contain(inativo["id"].ComoTexto()),
+            "O autocomplete com somenteAtivos=true ofereceu um motorista inativo.");
+    }
+
+    /// <summary>
+    /// Sem o parâmetro vale o contrato antigo: os filtros das listagens de alocação e de deslocamento
+    /// precisam achar o histórico de motoristas que hoje estão inativos.
+    /// </summary>
+    [Test]
+    public async Task AutoCompleteSemSomenteAtivosDeveContinuarOferecendoMotoristaInativo()
+    {
+        var nome = Nome("MotoristaInativo");
+        var inativo = await CriarFuncionarioAsync(nome, await ObterFuncaoMotoristaIdAsync(), ativo: false);
+
+        var ids = await BuscarIdsNoAutoCompleteAsync(nome, somenteAtivos: false);
+
+        Assert.That(ids, Does.Contain(inativo["id"].ComoTexto()),
+            "Sem somenteAtivos o autocomplete deixou de oferecer motorista inativo, e os filtros de listagem perdem o histórico.");
+    }
+
+    /// <summary>Com somenteAtivos=true, o autocomplete não pode oferecer ninguém fora da lista estrita de motoristas ativos.</summary>
+    [Test]
+    public async Task TodaOpcaoDoAutoCompleteSomenteAtivosDeveEstarEntreOsMotoristasAtivos()
     {
         var ativos = (await Api.GetAsync(ControleOperacaoRecursos.MotoristasAtivos))?.AsArray() ?? [];
         if (ativos.Count == 0)
@@ -83,5 +119,64 @@ public class ContratoOpcoesMotoristaTests : ControleOperacaoTestBase
             Assert.That(resposta.Corpo, Does.Contain("motorista"),
                 "A mensagem precisa dizer ao usuário o que fazer, não só que a requisição é inválida.");
         });
+    }
+
+    /// <summary>Contrato do backend: o Alocar precisa recusar motorista inativo, como o Vincular já faz.</summary>
+    [Test]
+    public async Task AlocarDeveRecusarMotoristaInativo()
+    {
+        var inativo = await CriarFuncionarioAsync(Nome("MotoristaInativo"), await ObterFuncaoMotoristaIdAsync(), ativo: false);
+
+        // Veículo inexistente de propósito: se a validação sumir, vem "Veiculo nao encontrado" em vez de gravar uma alocação.
+        var resposta = await Api.EnviarAsync("POST", ControleOperacaoRecursos.Alocar, new System.Text.Json.Nodes.JsonObject
+        {
+            ["funcionarioId"] = inativo["id"].ComoTexto(),
+            ["veiculoId"] = long.MaxValue,
+            ["dataHoraAlocacao"] = DateTime.Now.ToString("yyyy-MM-ddTHH:mm:ss"),
+        });
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(resposta.Status, Is.EqualTo(400), $"Esperado 400, veio {resposta.Status}: {resposta.Corpo}");
+            Assert.That(resposta.Corpo, Does.Contain("está inativo"),
+                "O Alocar precisa recusar o motorista por estar inativo, antes de olhar veículo e vínculos.");
+        });
+    }
+
+    /// <summary>
+    /// O cadastro de viagem escolhe por este autocomplete o motorista que vai gravar, então inativo não pode aparecer.
+    /// O ativo criado junto garante que o teste não passa só porque a busca voltou vazia.
+    /// </summary>
+    [Test]
+    public async Task AutoCompleteFuncionarioDisponivelNaoDeveOferecerMotoristaInativo()
+    {
+        var funcaoMotoristaId = await ObterFuncaoMotoristaIdAsync();
+        var termo = Nome("Disponivel");
+        var ativo = await CriarFuncionarioAsync($"{termo}-Ativo", funcaoMotoristaId, ativo: true);
+        var inativo = await CriarFuncionarioAsync($"{termo}-Inativo", funcaoMotoristaId, ativo: false);
+
+        var inicio = DateTime.Today.AddDays(1).AddHours(8);
+        var caminho = $"{ControleOperacaoRecursos.AutoCompleteFuncionarioDisponivel}?q={Uri.EscapeDataString(termo)}" +
+            $"&inicio={inicio:yyyy-MM-ddTHH:mm:ss}&fim={inicio.AddHours(1):yyyy-MM-ddTHH:mm:ss}";
+        var oferecidos = (await Api.GetAsync(caminho))?.AsArray() ?? [];
+        var ids = oferecidos.Select(x => x!["id"].ComoTexto()).ToList();
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(ids, Does.Contain(ativo["id"].ComoTexto()), "O motorista ativo deveria ser oferecido no cadastro de viagem.");
+            Assert.That(ids, Does.Not.Contain(inativo["id"].ComoTexto()), "O cadastro de viagem ofereceu um motorista inativo.");
+        });
+    }
+
+    private async Task<List<string?>> BuscarIdsNoAutoCompleteAsync(string termo, bool somenteAtivos)
+    {
+        var caminho = $"{ControleOperacaoRecursos.AutoCompleteMotorista}?q={Uri.EscapeDataString(termo)}";
+        if (somenteAtivos)
+        {
+            caminho += "&somenteAtivos=true";
+        }
+
+        var oferecidos = (await Api.GetAsync(caminho))?.AsArray() ?? [];
+        return oferecidos.Select(x => x!["id"].ComoTexto()).ToList();
     }
 }
