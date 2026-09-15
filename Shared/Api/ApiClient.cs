@@ -12,11 +12,12 @@ public sealed class ApiClient : IAsyncDisposable
 {
     private readonly IAPIRequestContext _request;
 
-    private ApiClient(IAPIRequestContext request, string token, int? tipoOperacaoId)
+    private ApiClient(IAPIRequestContext request, string token, int? tipoOperacaoId, string? empresaId)
     {
         _request = request;
         Token = token;
         TipoOperacaoId = tipoOperacaoId;
+        EmpresaId = empresaId;
     }
 
     public string Token { get; }
@@ -24,12 +25,18 @@ public sealed class ApiClient : IAsyncDisposable
     /// <summary>Tipo de operação da empresa logada (1 Passageiro, 2 Carga), como o login devolve ao front.</summary>
     public int? TipoOperacaoId { get; }
 
+    /// <summary>Id (GUID) da empresa logada, como o RetrieveSessionApp devolve ao front.</summary>
+    public string? EmpresaId { get; }
+
     /// <summary>
     /// Autentica como o front: <c>login</c> e, se o usuário tiver várias empresas, <c>login/empresa</c>.
     /// </summary>
-    public static async Task<ApiClient> LoginAsync(IPlaywright playwright, string login, string senha, string? empresa)
+    /// <param name="apiUrl">CCO.Api a usar; se omitida, <see cref="E2ESettings.ApiUrl"/>.</param>
+    public static async Task<ApiClient> LoginAsync(IPlaywright playwright, string login, string senha, string? empresa,
+        string? apiUrl = null)
     {
-        var anonimo = await NovoContextoAsync(playwright, token: null);
+        var baseUrl = (apiUrl ?? E2ESettings.ApiUrl).TrimEnd('/') + "/";
+        var anonimo = await NovoContextoAsync(playwright, baseUrl, token: null);
         string token;
         try
         {
@@ -53,10 +60,11 @@ public sealed class ApiClient : IAsyncDisposable
         }
 
         // O login devolve só o token; os dados da empresa vêm do RetrieveSessionApp, como o front também faz.
-        var contexto = await NovoContextoAsync(playwright, token);
+        var contexto = await NovoContextoAsync(playwright, baseUrl, token);
         var sessao = (await EnviarAsync(contexto, "GET", "v1/Autenticador/RetrieveSessionApp/Sistema")).Json;
 
-        return new ApiClient(contexto, token, sessao?["empresa"]?["tipoOperacaoId"]?.GetValue<int>());
+        return new ApiClient(contexto, token, sessao?["empresa"]?["tipoOperacaoId"]?.GetValue<int>(),
+            sessao?["empresa"]?["id"]?.ToString());
     }
 
     public async Task<JsonNode?> GetAsync(string caminho, string? include = null) =>
@@ -73,7 +81,7 @@ public sealed class ApiClient : IAsyncDisposable
 
     public ValueTask DisposeAsync() => _request.DisposeAsync();
 
-    private static Task<IAPIRequestContext> NovoContextoAsync(IPlaywright playwright, string? token)
+    private static Task<IAPIRequestContext> NovoContextoAsync(IPlaywright playwright, string baseUrl, string? token)
     {
         var headers = new Dictionary<string, string> { ["Accept-Language"] = "pt-BR" };
         if (token is not null)
@@ -81,7 +89,7 @@ public sealed class ApiClient : IAsyncDisposable
             headers["Authorization"] = $"Bearer {token}";
         }
 
-        return playwright.APIRequest.NewContextAsync(new() { BaseURL = E2ESettings.ApiUrl, ExtraHTTPHeaders = headers });
+        return playwright.APIRequest.NewContextAsync(new() { BaseURL = baseUrl, ExtraHTTPHeaders = headers });
     }
 
     private static async Task<ApiResposta> EnviarAsync(IAPIRequestContext contexto, string metodo, string caminho,
