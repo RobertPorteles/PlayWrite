@@ -20,7 +20,17 @@ public static class ControleOperacaoRecursos
 
     public const string Alocar = "v1/ControleOperacao/AlocacaoVeiculo/Alocar";
 
-    public const string VeiculosAtivos = "v1/ControleOperacao/Veiculo/ObterVeiculosAtivos";
+    public const string Veiculo = "v1/ControleOperacao/Veiculo";
+
+    public const string VeiculosAtivos = $"{Veiculo}/ObterVeiculosAtivos";
+
+    /// <summary>
+    /// Mesmas listas que o cadastro de veículo carrega nos selects (Service.ListarTudo do front).
+    /// O q é obrigatório na API; o front manda "pre" junto com preCarregado=true.
+    /// </summary>
+    public const string TiposVeiculo = "v1/TipoVeiculo/Autocomplete?preCarregado=true&q=pre";
+
+    public const string TiposOperacao = "v1/TipoOperacao/Autocomplete?preCarregado=true&q=pre";
 
     /// <summary>SituacaoVinculoVeiculo.Vinculado.</summary>
     public const int SituacaoVinculado = 1;

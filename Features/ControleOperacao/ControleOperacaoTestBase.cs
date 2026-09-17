@@ -9,13 +9,13 @@ namespace PlaywrightTests.Features.ControleOperacao;
 
 /// <summary>
 /// Base dos testes de controle de operação. Tem limpeza própria porque o id de Funcionario é Guid,
-/// e o CleanupTracker da logística trabalha com ids long.
+/// e o CleanupTracker da logística trabalha com ids long: aqui guarda-se o caminho completo do DELETE.
 /// </summary>
 public abstract class ControleOperacaoTestBase : E2ETestBase
 {
     public const string Categoria = "ControleOperacao";
 
-    private readonly List<string> _funcionariosCriados = [];
+    private readonly List<string> _criados = [];
 
     protected ApiClient Api { get; private set; } = null!;
 
@@ -33,18 +33,21 @@ public abstract class ControleOperacaoTestBase : E2ETestBase
             return;
         }
 
-        foreach (var id in _funcionariosCriados)
+        foreach (var caminho in _criados)
         {
-            var resposta = await Api.DeleteAsync($"{ControleOperacaoRecursos.Funcionario}/{id}");
+            var resposta = await Api.DeleteAsync(caminho);
             if (!resposta.Sucesso && resposta.Status != 404)
             {
-                TestContext.Progress.WriteLine($"Cleanup: DELETE Funcionario/{id} retornou {resposta.Status}: {resposta.Corpo}");
+                TestContext.Progress.WriteLine($"Cleanup: DELETE {caminho} retornou {resposta.Status}: {resposta.Corpo}");
             }
         }
 
-        _funcionariosCriados.Clear();
+        _criados.Clear();
         await Api.DisposeAsync();
     }
+
+    /// <summary>Registra o caminho (recurso/id) a excluir no TearDown.</summary>
+    protected void RegistrarCriado(string recurso, string id) => _criados.Add($"{recurso}/{id}");
 
     /// <summary>Id da função considerada motorista, pelo mesmo critério do backend: cargo do parâmetro, senão a função ativa "MOTORISTA".</summary>
     protected async Task<long> ObterFuncaoMotoristaIdAsync()
@@ -79,7 +82,7 @@ public abstract class ControleOperacaoTestBase : E2ETestBase
         var criado = (await Api.PostAsync(ControleOperacaoRecursos.Funcionario, corpo))
             ?? throw new InvalidOperationException($"POST {ControleOperacaoRecursos.Funcionario} não devolveu corpo.");
 
-        _funcionariosCriados.Add(criado["id"].ComoTexto()!);
+        RegistrarCriado(ControleOperacaoRecursos.Funcionario, criado["id"].ComoTexto()!);
         return criado;
     }
 
