@@ -27,8 +27,7 @@ public sealed class AppMenu(IPage page)
 
     /// <summary>Item de menu dentro do grupo informado (os itens são links &lt;a href&gt;).</summary>
     public ILocator Item(string grupo, string item) =>
-        Grupo(grupo)
-            .Locator("xpath=ancestor::div[contains(concat(' ', normalize-space(@class), ' '), ' v-list-group ')][1]")
+        Conteiner(grupo)
             .Locator("a.v-list-item", new() { HasTextRegex = TextoExato(item) })
             .First;
 
@@ -37,10 +36,16 @@ public sealed class AppMenu(IPage page)
         await AbrirAsync();
         var cabecalho = Grupo(grupo);
         await Expect(cabecalho).ToBeVisibleAsync();
-        if (await cabecalho.GetAttributeAsync("aria-expanded") != "true")
+
+        // O cabeçalho do Vuetify não tem aria-expanded: aberto é a classe v-list-group--open do grupo. Clicar num grupo
+        // que já está aberto (o drawer lembra o estado ao fechar e reabrir) o fecharia.
+        var conteiner = Conteiner(grupo);
+        if (!(await conteiner.GetAttributeAsync("class") ?? "").Split(' ').Contains("v-list-group--open"))
         {
             await cabecalho.ClickAsync();
         }
+
+        await Expect(conteiner).ToHaveClassAsync(GrupoAberto());
     }
 
     /// <summary>Abre o menu, expande o grupo e navega para o item (o link recarrega a página).</summary>
@@ -52,6 +57,11 @@ public sealed class AppMenu(IPage page)
         await link.ClickAsync();
         await Expect(page).ToHaveURLAsync(new Regex(Regex.Escape(urlEsperada) + "$", RegexOptions.IgnoreCase));
     }
+
+    private ILocator Conteiner(string grupo) =>
+        Grupo(grupo).Locator("xpath=ancestor::div[contains(concat(' ', normalize-space(@class), ' '), ' v-list-group ')][1]");
+
+    private static Regex GrupoAberto() => new(@"(^|\s)v-list-group--open(\s|$)");
 
     private static Regex TextoExato(string texto) =>
         new($"^\\s*{Regex.Escape(texto)}\\s*$", RegexOptions.IgnoreCase);

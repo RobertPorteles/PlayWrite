@@ -8,7 +8,9 @@ export HEADED="${HEADED:-1}" SLOWMO_MS="${SLOWMO_MS:-500}"
 linhas=()
 for f in Features/*/Tests/*.cs; do
   feature=${f#Features/}; feature=${feature%%/*}
-  linhas+=(FALSE "$feature/$(basename "$f" .cs)")
+  # Abre o navegador (usa a propriedade Page do Playwright) = E2E; os de contrato só chamam a API.
+  sufixo=; grep -qw Page "$f" && sufixo=" E2E"
+  linhas+=(FALSE "$feature/$(basename "$f" .cs)$sufixo")
 done
 
 escolhidos=$(zenity --list --checklist --title="Testes E2E" --width=500 --height=600 \
@@ -17,5 +19,5 @@ escolhidos=$(zenity --list --checklist --title="Testes E2E" --width=500 --height
 
 [ -z "$escolhidos" ] && exec dotnet test "$@"
 
-filtro=$(while read -r t; do echo -n "FullyQualifiedName~.${t%/*}.Tests.${t#*/}|"; done <<< "$escolhidos")
+filtro=$(while read -r t; do t=${t% E2E}; echo -n "FullyQualifiedName~.${t%/*}.Tests.${t#*/}|"; done <<< "$escolhidos")
 exec dotnet test --filter "${filtro%|}" "$@"

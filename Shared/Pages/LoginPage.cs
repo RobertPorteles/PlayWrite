@@ -84,7 +84,8 @@ public sealed partial class LoginPage(IPage page)
             Token: sessao?["token"].ComoTexto(),
             TipoOperacaoId: dados?["empresa"]?["tipoOperacaoId"].ComoInt(),
             UsuarioMaster: dados?["usuarioMaster"].ComoBool() ?? false,
-            EmpresaNome: dados?["empresa"]?["nome"].ComoTexto());
+            EmpresaNome: dados?["empresa"]?["nome"].ComoTexto(),
+            Atendimento: dados?["acesso"]?["atendimento"].ComoBool() ?? false);
     }
 
     public static Regex AppCarregada() => AppCarregadaRegex();
@@ -96,4 +97,4 @@ public sealed partial class LoginPage(IPage page)
     private static partial Regex AppCarregadaRegex();
 }
 
-public sealed record SessaoApp(string? Token, int? TipoOperacaoId, bool UsuarioMaster, string? EmpresaNome);
+public sealed record SessaoApp(string? Token, int? TipoOperacaoId, bool UsuarioMaster, string? EmpresaNome, bool Atendimento);
