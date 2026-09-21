@@ -8,6 +8,11 @@ Malote...). Há duas formas de entrar nele:
 - **Usuário com o perfil de atendimento:** entra direto pelo login. Não passa pela escolha de empresa. Se também
   tiver empresas, troca depois pelo botão da fábrica.
 
+Quem é do atendimento também pode **entrar em empresas liberadas para ele**. No `/usuario`, aba Acesso, o campo
+"Empresas do atendimento" grava cada empresa como vínculo **com empresa e sem perfil**. Pela fábrica, ao entrar numa
+delas, o atendimento vê o que os usuários da empresa veem: a soma dos perfis ativos da empresa, sem as funcionalidades
+de ControleSistema, mais o próprio atendimento, para poder voltar.
+
 Eles também guardam a correção de segurança: `POST v1/autenticador/atendimento` (anônimo, usado no rail da tela de
 login) passou a exigir login **e senha**.
 
@@ -18,7 +23,11 @@ A base local não tem perfis e todos os usuários locais são master. Por isso, 
 
 - o perfil `E2E Atendimento <sufixo>`, com todas as funcionalidades de atendimento (811000–811015);
 - `e2e.atend.so.<sufixo>@e2e.local`, que tem só o vínculo sem empresa;
-- `e2e.atend.misto.<sufixo>@e2e.local`, com o vínculo sem empresa e também a empresa de `E2E_EMPRESA`.
+- `e2e.atend.misto.<sufixo>@e2e.local`, com o vínculo sem empresa e também a empresa de `E2E_EMPRESA`, com o mesmo
+  perfil;
+- `e2e.atend.liberada.<sufixo>@e2e.local`, com a empresa de `E2E_EMPRESA` liberada para o atendimento (sem perfil);
+- `e2e.atend.empresa.<sufixo>@e2e.local`, um usuário comum da empresa com o perfil `E2E Atendimento Empresa` (Mapa e
+  uma funcionalidade de ControleSistema, que o atendimento não pode herdar).
 
 A senha é a padrão do cadastro (`123@mudar`). Tudo é apagado no fim. Antes de criar, a fixture remove sobras com
 esses prefixos de execuções abortadas.

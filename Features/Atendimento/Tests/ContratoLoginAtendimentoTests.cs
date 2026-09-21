@@ -144,6 +144,48 @@ public class ContratoLoginAtendimentoTests : PlaywrightTest
         });
     }
 
+    [Test]
+    public async Task EmpresaLiberadaDeveTrazerOQueOsUsuariosDaEmpresaVeem()
+    {
+        var atendimento = await LoginAsync(UsuariosAtendimento.ComEmpresaLiberada);
+
+        var troca = await EnviarAsync("POST", $"v1/autenticador/TrocarEmpresa?empresaId={UsuariosAtendimento.EmpresaId}",
+            token: atendimento);
+        var sessao = await EnviarAsync("GET", "v1/autenticador/RetrieveSessionApp/Sistema", token: TokenDe(troca));
+        var funcionalidades = sessao.Json?["funcionalidades"].Registros().Select(f => f?["funcionalidade"].ComoInt()).ToList();
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(sessao.Status, Is.EqualTo(200), sessao.Corpo);
+            Assert.That(sessao.Json?["empresa"]?["id"].ComoTexto(), Is.EqualTo(UsuariosAtendimento.EmpresaId).IgnoreCase);
+            Assert.That(sessao.Json?["acesso"]?["atendimento"].ComoBool(), Is.False);
+            Assert.That(funcionalidades, Does.Contain(1035000).And.Contain(1035001),
+                "Deveria ver o que os usuários da empresa veem (o perfil do usuário comum).");
+            Assert.That(funcionalidades, Does.Contain(811000), "Deveria manter o próprio atendimento, para poder voltar.");
+            Assert.That(funcionalidades, Does.Not.Contain(813004), "Funcionalidade de ControleSistema não pode ser herdada.");
+        });
+    }
+
+    [Test]
+    public async Task EmpresaNaoLiberadaNaoDeveAbrir()
+    {
+        var atendimento = await LoginAsync(UsuariosAtendimento.SoAtendimento);
+
+        var troca = await EnviarAsync("POST", $"v1/autenticador/TrocarEmpresa?empresaId={UsuariosAtendimento.EmpresaId}",
+            token: atendimento);
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(troca.Status, Is.EqualTo(404), $"Esperava 'Empresa não encontrada!': {troca.Corpo}");
+            Assert.That(string.IsNullOrEmpty((troca.Json as JsonObject)?["token"].ComoTexto()), Is.True,
+                "O atendimento abriu uma empresa que não foi liberada para ele.");
+        });
+    }
+
+    private async Task<string> LoginAsync(string login) =>
+        TokenDe(await EnviarAsync("POST", "v1/Autenticador/login",
+            new JsonObject { ["login"] = login, ["senha"] = UsuariosAtendimento.Senha }));
+
     private async Task<ApiResposta> EnviarAsync(string metodo, string caminho, JsonObject? corpo = null, string? token = null)
     {
         var headers = new Dictionary<string, string>();

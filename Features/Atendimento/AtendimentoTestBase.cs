@@ -74,6 +74,23 @@ public abstract class AtendimentoTestBase : E2ETestBase
         await Page.Keyboard.PressAsync("Escape");
     }
 
+    /// <summary>
+    /// Botão da fábrica (AlterarEmpresa.vue) → a única empresa da lista. A troca abre /auth/home?token=... numa nova
+    /// navegação e o Auth.vue pede o RetrieveSessionApp antes de voltar para a /home. Esperar só a URL /home não basta:
+    /// ela já é a URL antes da troca, e ler a sessão no meio da navegação dá "Execution context was destroyed".
+    /// </summary>
+    protected async Task TrocarDeEmpresaAsync(string empresa)
+    {
+        await Page.Locator(".header-company button").ClickAsync();
+        var empresas = Page.Locator(".cardEmpresa .v-list-item");
+        await Expect(empresas).ToHaveCountAsync(1);
+        await Expect(empresas).ToContainTextAsync(empresa);
+
+        await Page.RunAndWaitForResponseAsync(() => empresas.ClickAsync(), r => r.Url.Contains("/RetrieveSessionApp/"));
+        await Page.WaitForURLAsync(new Regex("/home$"));
+        await Expect(Page.Locator(".header-company")).ToContainTextAsync(empresa);
+    }
+
     /// <summary>Atendimento → Módulos: a lista de /equipamento vai com o token da sessão atual.</summary>
     protected async Task AbrirModulosPeloMenuAsync()
     {

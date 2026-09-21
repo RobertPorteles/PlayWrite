@@ -67,14 +67,7 @@ public class PerfilAtendimentoTests : AtendimentoTestBase
         await EntrarComPerfilAtendimentoAsync(UsuariosAtendimento.Misto);
         Assert.That((await new LoginPage(Page).LerSessaoAsync()).Atendimento, Is.True);
 
-        await Page.Locator(".header-company button").ClickAsync();
-        var empresas = Page.Locator(".cardEmpresa .v-list-item");
-        await Expect(empresas).ToHaveCountAsync(1);
-        await Expect(empresas).ToContainTextAsync(UsuariosAtendimento.EmpresaDoMisto);
-
-        await empresas.ClickAsync();
-        await Page.WaitForURLAsync(new Regex("/home$"));
-        await Expect(Page.Locator(".header-company")).ToContainTextAsync(UsuariosAtendimento.EmpresaDoMisto);
+        await TrocarDeEmpresaAsync(UsuariosAtendimento.EmpresaDoMisto);
 
         var sessao = await new LoginPage(Page).LerSessaoAsync();
         Assert.Multiple(() =>
@@ -84,6 +77,27 @@ public class PerfilAtendimentoTests : AtendimentoTestBase
         });
 
         // Fora do atendimento, o item volta ao menu do avatar para ele entrar de novo.
+        await AbrirMenuUsuarioAsync();
+        await Expect(ItemAtendimento).ToBeVisibleAsync();
+    }
+
+    /// <summary>
+    /// Empresa liberada para o atendimento (vínculo com empresa e sem perfil): pela fábrica ele entra nela e vê o que os
+    /// usuários da empresa veem (aqui, o Mapa do perfil do usuário comum da fixture), sem perder a volta ao atendimento.
+    /// </summary>
+    [Test]
+    public async Task EmpresaLiberadaDeveAbrirComOQueOsUsuariosDaEmpresaVeem()
+    {
+        await EntrarComPerfilAtendimentoAsync(UsuariosAtendimento.ComEmpresaLiberada);
+        Assert.That((await new LoginPage(Page).LerSessaoAsync()).Atendimento, Is.True);
+
+        await TrocarDeEmpresaAsync(UsuariosAtendimento.EmpresaDoMisto);
+        Assert.That((await new LoginPage(Page).LerSessaoAsync()).Atendimento, Is.False);
+
+        await Menu.ExpandirGrupoAsync("Operação em Tempo Real");
+        await Expect(Menu.Item("Operação em Tempo Real", "Mapa")).ToBeVisibleAsync();
+
+        await Page.Locator(".v-navigation-drawer__scrim").ClickAsync();
         await AbrirMenuUsuarioAsync();
         await Expect(ItemAtendimento).ToBeVisibleAsync();
     }

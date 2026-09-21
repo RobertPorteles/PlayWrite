@@ -96,19 +96,57 @@ public class CriacaoPerfilAtendimentoTests : AtendimentoTestBase
         }
     }
 
+    /// <summary>
+    /// Campo "Empresas do atendimento" (aba Acesso do /usuario): a empresa é gravada como vínculo com empresa e sem
+    /// perfil, e o usuário entra nela pela fábrica vendo o que os usuários da empresa veem (o Mapa do usuário comum criado
+    /// por <see cref="UsuariosAtendimento"/>).
+    /// </summary>
+    [Test]
+    public async Task EmpresaLiberadaPeloCadastroDeveAbrirComOQueAEmpresaVe()
+    {
+        var master = new LoginPage(Page);
+        await master.LoginAsync(E2ESettings.Login, E2ESettings.Senha, E2ESettings.Empresa);
+        _empresa = (await master.LerSessaoAsync()).EmpresaNome
+            ?? throw new InvalidOperationException("A sessão do master não trouxe a empresa.");
+
+        await CriarPerfilAsync();
+        await CriarUsuarioAsync(comEmpresa: false, liberarEmpresa: true);
+
+        await using (var api = await ApiClient.LoginAsync(Playwright, E2ESettings.Login, E2ESettings.Senha, E2ESettings.Empresa))
+        {
+            var perfil = await BuscarAsync(api, "v1/perfil", "nome", _perfil)
+                ?? throw new AssertionException($"O perfil '{_perfil}' não foi gravado.");
+            var usuario = await BuscarAsync(api, "v1/usuario", "email", _email, "Empresas")
+                ?? throw new AssertionException($"O usuário '{_email}' não foi gravado.");
+            var vinculos = usuario["empresas"]!.AsArray()
+                .Select(v => (Empresa: v!["empresaId"].ComoTexto(), Perfil: v["perfilId"].ComoLong()))
+                .ToList();
+
+            Assert.That(vinculos, Is.EquivalentTo(new[]
+            {
+                ((string?)null, (long?)perfil.Id()),
+                (api.EmpresaId, (long?)null),
+            }), "Esperava o vínculo do atendimento (sem empresa) e a empresa liberada (sem perfil).");
+        }
+
+        await Page.EvaluateAsync("() => localStorage.clear()");
+        var login = new LoginPage(Page);
+        await login.AbrirAsync();
+        await login.PreencherEEntrarAsync(_email, UsuariosAtendimento.Senha);
+        await Expect(Page).ToHaveURLAsync(new Regex("/home$"), new() { Timeout = 30_000 });
+        Assert.That((await login.LerSessaoAsync()).Atendimento, Is.True);
+
+        await TrocarParaAEmpresaAsync();
+        await Menu.ExpandirGrupoAsync("Operação em Tempo Real");
+        await Expect(Menu.Item("Operação em Tempo Real", "Mapa")).ToBeVisibleAsync();
+    }
+
     /// <summary>Botão da fábrica (AlterarEmpresa.vue): a empresa do vínculo aparece e a sessão sai do atendimento.</summary>
     private async Task TrocarParaAEmpresaAsync()
     {
         // A troca volta para a rota atual (/auth/<rota>?token=...); a partir da /home ela termina em /home.
         await Page.GotoAsync("/home");
-        await Page.Locator(".header-company button").ClickAsync();
-        var empresas = Page.Locator(".cardEmpresa .v-list-item");
-        await Expect(empresas).ToHaveCountAsync(1);
-        await Expect(empresas).ToContainTextAsync(_empresa);
-
-        await empresas.ClickAsync();
-        await Page.WaitForURLAsync(new Regex("/home$"));
-        await Expect(Page.Locator(".header-company")).ToContainTextAsync(_empresa);
+        await TrocarDeEmpresaAsync(_empresa);
 
         var sessao = await new LoginPage(Page).LerSessaoAsync();
         Assert.Multiple(() =>
@@ -125,7 +163,13 @@ public class CriacaoPerfilAtendimentoTests : AtendimentoTestBase
 
         await Vuetify.Campo(dialogo, "Nome").FillAsync(_perfil);
         var grupo = await LocalizarFuncionalidadeAsync(dialogo, "Atendimento");
-        await grupo.CheckAsync();
+        // Não usar CheckAsync: ele confere o estado logo após o clique, e este checkbox é controlado
+        // (:model-value="VerificarItem(...)"): o Vue só o marca no tick seguinte. No Inspector (PWDEBUG=1) isso falhava
+        // com "Clicking the checkbox did not change its state". O Expect espera a marcação.
+        if (!await grupo.IsCheckedAsync())
+        {
+            await grupo.ClickAsync();
+        }
         await Expect(grupo).ToBeCheckedAsync();
 
         await SalvarCadastroAsync(dialogo);
@@ -165,7 +209,7 @@ public class CriacaoPerfilAtendimentoTests : AtendimentoTestBase
     }
 
     /// <summary>/usuario: login e nome na aba Geral; na aba Acesso, o perfil (e a empresa, se pedida) e "Adicionar".</summary>
-    private async Task CriarUsuarioAsync(bool comEmpresa)
+    private async Task CriarUsuarioAsync(bool comEmpresa, bool liberarEmpresa = false)
     {
         var dialogo = await AbrirCadastroAsync("/usuario", "Criar Usuario");
 
@@ -186,6 +230,20 @@ public class CriacaoPerfilAtendimentoTests : AtendimentoTestBase
         }
         await dialogo.GetByRole(AriaRole.Button, new() { Name = "Adicionar", Exact = true }).ClickAsync();
         await Expect(dialogo.Locator("tbody tr", new() { HasText = _perfil })).ToBeVisibleAsync();
+
+        if (liberarEmpresa)
+        {
+            // Só aparece depois do vínculo sem empresa (o do perfil de atendimento). É seleção múltipla: o menu continua
+            // aberto depois de escolher (o SelecionarAutocompleteAsync espera ele fechar), então fecha clicando no título.
+            var campo = Vuetify.Campo(dialogo, "Empresas do atendimento");
+            await campo.ClickAsync();
+            await campo.FillAsync(_empresa);
+            await Page.Locator(".v-overlay--active.v-menu .v-list-item", new() { HasText = _empresa }).First.ClickAsync();
+            await dialogo.GetByText("Criar Usuario", new() { Exact = true }).ClickAsync();
+            await Expect(Page.Locator(".v-overlay--active.v-menu")).ToHaveCountAsync(0);
+            await Expect(Vuetify.Container(dialogo, "Empresas do atendimento").Locator(".v-chip")).ToContainTextAsync(_empresa);
+            await Expect(dialogo.Locator("tbody tr", new() { HasText = "Acesso do atendimento" })).ToContainTextAsync(_empresa);
+        }
 
         await dialogo.GetByRole(AriaRole.Tab, new() { Name = "Geral", Exact = true }).ClickAsync();
         await Expect(Vuetify.Campo(dialogo, "Login (E-mail)")).ToHaveValueAsync(_email);
