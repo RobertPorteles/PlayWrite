@@ -75,7 +75,7 @@ necessário nenhum ajuste adicional no projeto.
 | `Tests/CadastrosBaseLogisticaTests.cs` | Cliente, Centro de custo, Solicitante e Local de interesse: criar pela tela, conferir na API, pesquisar e excluir |
 | `Tests/ProgramacaoLogisticaTests.cs` | Wizard completo sem OS (fica **Pendente**); "Enviar OS" com veículo e motorista (fica **Programada**); validação de campo obrigatório |
 | `Tests/ViagemLogisticaTests.cs` | Visualizar viagem; finalizar item (fica **Finalizada**); cancelar exige motivo (fica **Cancelada**) |
-| `Tests/PesquisaRapidaLogisticaTests.cs` | A consulta da "Pesquisa rápida" de cada uma das 6 telas é aceita pela API (HTTP 200) |
+| `Tests/PesquisaRapidaLogisticaTests.cs` | A consulta da "Pesquisa rápida" de cada uma das 6 telas é aceita pela API (HTTP 200) e, em 5 delas, encontra o registro criado pelo teste (as demais telas do front ficam em `Features/Pesquisa`) |
 | `Tests/FluxoCompletoLogisticaTests.cs` | Login → Programações pelo menu → wizard com OS → viagem iniciada → Viagem Logística pelo menu → visualizar → finalizar → conferência na tela e na API |
 
 ## Dados de teste e limpeza
