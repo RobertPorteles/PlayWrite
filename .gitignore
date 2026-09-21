@@ -13,3 +13,6 @@ playwright-traces/
 
 # Artefato do instalador de dependências do navegador (apt), não faz parte do projeto
 packages-microsoft-prod.rpm
+
+# Variáveis locais dos testes E2E (credenciais)
+.env.e2e
