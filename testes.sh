@@ -4,6 +4,9 @@ cd "$(dirname "$0")"
 set -a; [ -f .env.e2e ] && . ./.env.e2e; set +a
 # Navegador visível e mais lento por padrão; HEADED=0 ./testes.sh roda sem janela.
 export HEADED="${HEADED:-1}" SLOWMO_MS="${SLOWMO_MS:-500}"
+# VIDEO=1 ./testes.sh grava um vídeo por teste em videos/<teste>.webm.
+# PWDEBUG=1 ./testes.sh abre o Playwright Inspector: pausa antes de cada ação para ir passo a passo.
+[ "${VIDEO:-0}" = 1 ] && export VIDEO_DIR="$PWD/videos"
 
 linhas=()
 for f in Features/*/Tests/*.cs; do

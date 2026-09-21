@@ -6,6 +6,9 @@ obj/
 TestResults/
 playwright-traces/
 
+# Vídeos gravados com VIDEO=1 ./testes.sh
+videos/
+
 # Editor / OS
 .vs/
 *.user
