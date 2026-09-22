@@ -50,6 +50,19 @@ public sealed class ProgramacaoWizard(IPage page)
         }
     }
 
+    /// <summary>Clica no "+" do campo Cliente (AutoCompleteCreateField) e devolve o diálogo "Cadastrar Cliente".</summary>
+    public async Task<ILocator> AbrirCadastroClienteAsync()
+    {
+        await Vuetify.Container(PassoAtivo, "Cliente").Locator(".create-item-button").ClickAsync();
+        // Ancorado no título, e não em ".v-dialog.Last": ao fechar, o último diálogo passaria a ser o próprio wizard.
+        var dialogo = page.Locator(".v-dialog").Filter(new()
+        {
+            Has = page.Locator(".v-toolbar-title", new() { HasTextRegex = Vuetify.TextoExato("Cadastrar Cliente") }),
+        });
+        await Expect(dialogo).ToBeVisibleAsync();
+        return dialogo;
+    }
+
     /// <summary>Seleciona o passageiro/carga, confirma e define os locais de origem e destino.</summary>
     public async Task AdicionarItemAsync(DadosApoio apoio)
     {
