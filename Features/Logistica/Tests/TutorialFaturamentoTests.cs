@@ -1,4 +1,6 @@
+using System.IO.Compression;
 using System.Text.RegularExpressions;
+using System.Xml.Linq;
 using Microsoft.Playwright;
 using PlaywrightTests.Features.Logistica.Data;
 using PlaywrightTests.Features.Logistica.Pages;
@@ -11,7 +13,8 @@ using static Microsoft.Playwright.Assertions;
 namespace PlaywrightTests.Features.Logistica.Tests;
 
 /// <summary>
-/// Tutorial do faturamento: percorre o módulo inteiro pela tela, como um usuário faria, com uma legenda em cada passo.
+/// Tutorial do faturamento: percorre o módulo inteiro pela tela, como um usuário faria, com uma legenda em cada passo, e
+/// termina na exportação para o cliente (planilha das viagens em Viagem Logística).
 /// Para assistir: <c>HEADED=1 SLOWMO_MS=400</c> (navegador visível) ou <c>VIDEO=1</c> (grava em <c>videos/</c>). Nesses
 /// modos cada legenda fica alguns segundos na tela; <c>TUTORIAL_PAUSA_MS</c> muda esse tempo.
 /// <para>
@@ -144,7 +147,48 @@ public class TutorialFaturamentoTests : LogisticaTestBase
         await menu.NavegarAsync("Financeiro e Órgão Gestor", "Faturas", "/logistica/faturamento/faturas");
         await Expect(Page.Locator("tbody tr", new() { HasText = $"#{fatura}" })).ToContainTextAsync("Aprovada");
         await NarrarAsync("7. Faturas",
-            "A lista mostra todas as faturas, com filtros de status, cliente e período. Clique numa linha para abrir o detalhe. Fim do tutorial!");
+            "A lista mostra todas as faturas, com filtros de status, cliente e período. Clique numa linha para abrir o detalhe.");
+
+        // 8. Exportar para o cliente: a planilha das viagens finalizadas, filtrada pelo cliente.
+        await menu.NavegarAsync("Operação em Tempo Real", "Viagem Logística", ViagemLogisticaPage.Url);
+        await NarrarAsync("8. Exportar para o cliente",
+            "Junto com a fatura, o cliente costuma pedir o detalhamento das viagens. Em Viagem Logística, o botão Exportar gera uma planilha Excel com as viagens finalizadas.");
+        await Page.GetByRole(AriaRole.Button, new() { Name = "Exportar", Exact = true }).ClickAsync();
+        var exportacao = Page.Locator(".v-overlay--active .v-card", new() { HasText = "Exportar viagens de logística" }).Last;
+        await Expect(exportacao).ToBeVisibleAsync();
+        var clienteExportacao = exportacao.GetByRole(AriaRole.Combobox, new() { Name = "Cliente", Exact = true });
+        await clienteExportacao.ClickAsync();
+        await clienteExportacao.FillAsync(apoio.NomeCliente);
+        await Page.GetByRole(AriaRole.Option, new() { Name = apoio.NomeCliente }).ClickAsync();
+        await NarrarAsync("8. Exportar para o cliente",
+            "O período vem do dia 1º do mês até hoje e conta pela data real de início da viagem. Escolha o cliente; solicitante e centro de custo são filtros opcionais e se ajustam ao cliente escolhido.");
+
+        var download = await Page.RunAndWaitForDownloadAsync(
+            () => exportacao.GetByRole(AriaRole.Button, new() { Name = "Exportar", Exact = true }).ClickAsync());
+        Assert.That(download.SuggestedFilename, Does.Match(@"^viagens-logistica-\d{8}-\d{8}\.xlsx$"));
+        var planilha = Path.Combine(E2ESettings.Ler("VIDEO_DIR") ?? TestContext.CurrentContext.WorkDirectory, download.SuggestedFilename);
+        await download.SaveAsAsync(planilha);
+        TestContext.AddTestAttachment(planilha);
+        var textos = TextosDaPlanilha(planilha);
+        Assert.That(textos, Does.Contain("Cliente").And.Contain(apoio.NomeCliente)
+            .And.Contain(apoio.NomeSolicitante).And.Contain(apoio.NomeCentroCusto));
+        await NarrarAsync("8. Exportar para o cliente",
+            $"Baixou a planilha {download.SuggestedFilename}: uma linha por viagem do cliente, com datas reais, OS, centro de custo, solicitante, percurso, passageiros e veículo. Km inicial e final ainda saem vazios. Fim do tutorial!");
+        TestContext.Progress.WriteLine($"Planilha exportada: {planilha}");
+    }
+
+    /// <summary>Todos os textos de um .xlsx (zip de XMLs): strings compartilhadas e textos inline das abas.</summary>
+    private static List<string> TextosDaPlanilha(string caminho)
+    {
+        using var zip = ZipFile.OpenRead(caminho);
+        return zip.Entries
+            .Where(e => e.FullName == "xl/sharedStrings.xml" || e.FullName.StartsWith("xl/worksheets/", StringComparison.Ordinal))
+            .SelectMany(e =>
+            {
+                using var stream = e.Open();
+                return XDocument.Load(stream).Descendants().Where(x => x.Name.LocalName == "t").Select(x => x.Value).ToList();
+            })
+            .ToList();
     }
 
     /// <summary>Legenda fixa no rodapé da tela (sem bloquear cliques), repetida no console do teste.</summary>
