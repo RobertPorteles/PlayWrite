@@ -92,6 +92,38 @@ public sealed class LogisticaApi(ApiClient api, CleanupTracker cleanup)
         await api.GetAsync($"{LogisticaRecursos.ViagemLogistica}/{id}", IncludeViagem)
         ?? throw new InvalidOperationException($"Viagem {id} não encontrada.");
 
+    /// <summary>
+    /// OS do faturamento: programação com OS (sem par veículo-motorista) e valor de rota. Com <paramref name="realizada"/>,
+    /// a viagem é criada e finalizada item a item, como na tela, para a OS entrar na Medição (RN01).
+    /// </summary>
+    public async Task<OrdemServicoFaturavel> CriarOrdemServicoFaturavelAsync(DadosApoio apoio, decimal? valorRota = 100m,
+        bool realizada = true)
+    {
+        var solicitacao = await CriarSolicitacaoAsync(apoio, Fabrica.Nome("Faturamento"));
+        var rota = new JsonObject { ["nome"] = Fabrica.Nome("Rota"), ["valor"] = valorRota };
+        await CriarAsync(LogisticaRecursos.OrdemServico, new JsonObject
+        {
+            ["solicitacaoLogisticaId"] = solicitacao.Id(),
+            ["rota"] = rota,
+        });
+        solicitacao = await ObterSolicitacaoAsync(solicitacao.Id());
+
+        if (realizada)
+        {
+            var viagem = await CriarViagemIniciadaAsync(solicitacao, Fabrica.Nome("Viagem"));
+            foreach (var item in viagem["itens"]!.AsArray())
+            {
+                await api.PostAsync($"{LogisticaRecursos.ViagemLogistica}/FinalizarItem", new JsonObject
+                {
+                    ["viagemLogisticaId"] = viagem.Id(),
+                    ["viagemLogisticaItemId"] = item.Id(),
+                });
+            }
+        }
+
+        return new OrdemServicoFaturavel(solicitacao, solicitacao["ordemServico"]!.Id());
+    }
+
     /// <summary>Encontra pela API um registro criado pela tela e o registra no cleanup (rede de segurança se o teste falhar).</summary>
     public async Task<long?> RegistrarCriadoNaUiAsync(string recurso, string campo, string valor)
     {
@@ -136,4 +168,10 @@ public sealed record DadosApoio(
     public string NomeOrigem => Origem["nome"].ComoTexto()!;
 
     public string NomeDestino => Destino["nome"].ComoTexto()!;
+}
+
+/// <summary>Programação com OS criada para o faturamento.</summary>
+public sealed record OrdemServicoFaturavel(JsonNode Solicitacao, long OrdemServicoId)
+{
+    public long SolicitacaoId => Solicitacao.Id();
 }
