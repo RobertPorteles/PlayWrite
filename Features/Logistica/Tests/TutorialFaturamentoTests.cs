@@ -1,6 +1,4 @@
-using System.IO.Compression;
 using System.Text.RegularExpressions;
-using System.Xml.Linq;
 using Microsoft.Playwright;
 using PlaywrightTests.Features.Logistica.Data;
 using PlaywrightTests.Features.Logistica.Pages;
@@ -24,13 +22,8 @@ namespace PlaywrightTests.Features.Logistica.Tests;
 /// </summary>
 [TestFixture]
 [Category(Categoria)]
-public class TutorialFaturamentoTests : LogisticaTestBase
+public class TutorialFaturamentoTests : TutorialTestBase
 {
-    private static int PausaLeitura =>
-        int.TryParse(E2ESettings.Ler("TUTORIAL_PAUSA_MS"), out var pausa) ? pausa
-        : Environment.GetEnvironmentVariable("HEADED") == "1" || E2ESettings.Ler("VIDEO_DIR") is not null ? 3000
-        : 0;
-
     [Test]
     public async Task TutorialDoFaturamentoDaOsAteAFaturaAprovada()
     {
@@ -166,59 +159,16 @@ public class TutorialFaturamentoTests : LogisticaTestBase
         var download = await Page.RunAndWaitForDownloadAsync(
             () => exportacao.GetByRole(AriaRole.Button, new() { Name = "Exportar", Exact = true }).ClickAsync());
         Assert.That(download.SuggestedFilename, Does.Match(@"^viagens-logistica-\d{8}-\d{8}\.xlsx$"));
-        var planilha = Path.Combine(E2ESettings.Ler("VIDEO_DIR") ?? TestContext.CurrentContext.WorkDirectory, download.SuggestedFilename);
+        var planilha = Path.Combine(PastaArquivos, download.SuggestedFilename);
         await download.SaveAsAsync(planilha);
         TestContext.AddTestAttachment(planilha);
-        var textos = TextosDaPlanilha(planilha);
-        Assert.That(textos, Does.Contain("Cliente").And.Contain(apoio.NomeCliente)
-            .And.Contain(apoio.NomeSolicitante).And.Contain(apoio.NomeCentroCusto));
+        var linhas = LinhasDaPlanilha(planilha);
+        Assert.That(linhas, Has.Count.EqualTo(2), "Cabeçalho e a viagem do cliente.");
+        Assert.That(linhas[1], Does.Contain(apoio.NomeCliente).And.Contain(apoio.NomeSolicitante).And.Contain(apoio.NomeCentroCusto));
+        await MostrarPrevisaoPlanilhaAsync(download.SuggestedFilename, linhas,
+            "Cliente", "Data de Início", "Hora de Início", "OS Cliente", "Centro de custo", "Solicitante", "Origem", "Destino", "Passageiros", "Status do serviço");
         await NarrarAsync("8. Exportar para o cliente",
-            $"Baixou a planilha {download.SuggestedFilename}: uma linha por viagem do cliente, com datas reais, OS, centro de custo, solicitante, percurso, passageiros e veículo. Km inicial e final ainda saem vazios. Fim do tutorial!");
+            $"Esta é a planilha {download.SuggestedFilename}: uma linha por viagem do cliente, com datas reais, OS, centro de custo, solicitante, percurso, passageiros e veículo. Km inicial e final ainda saem vazios. Fim do tutorial!");
         TestContext.Progress.WriteLine($"Planilha exportada: {planilha}");
-    }
-
-    /// <summary>Todos os textos de um .xlsx (zip de XMLs): strings compartilhadas e textos inline das abas.</summary>
-    private static List<string> TextosDaPlanilha(string caminho)
-    {
-        using var zip = ZipFile.OpenRead(caminho);
-        return zip.Entries
-            .Where(e => e.FullName == "xl/sharedStrings.xml" || e.FullName.StartsWith("xl/worksheets/", StringComparison.Ordinal))
-            .SelectMany(e =>
-            {
-                using var stream = e.Open();
-                return XDocument.Load(stream).Descendants().Where(x => x.Name.LocalName == "t").Select(x => x.Value).ToList();
-            })
-            .ToList();
-    }
-
-    /// <summary>Legenda fixa no rodapé da tela (sem bloquear cliques), repetida no console do teste.</summary>
-    private async Task NarrarAsync(string passo, string texto)
-    {
-        await Page.EvaluateAsync(
-            """
-            ([passo, texto]) => {
-                let legenda = document.getElementById('tutorial-legenda');
-                if (!legenda) {
-                    legenda = document.createElement('div');
-                    legenda.id = 'tutorial-legenda';
-                    legenda.style.cssText = 'position:fixed;left:50%;bottom:24px;transform:translateX(-50%);z-index:99999;'
-                        + 'width:min(900px,90vw);padding:14px 20px;border-radius:10px;background:rgba(20,22,26,.92);color:#fff;'
-                        + 'font:15px/1.45 sans-serif;box-shadow:0 6px 24px rgba(0,0,0,.35);pointer-events:none';
-                    document.body.appendChild(legenda);
-                }
-                const titulo = document.createElement('strong');
-                titulo.textContent = passo;
-                const corpo = document.createElement('div');
-                corpo.textContent = texto;
-                legenda.replaceChildren(titulo, corpo);
-            }
-            """,
-            new[] { passo, texto });
-        TestContext.Progress.WriteLine($"{passo} — {texto}");
-
-        if (PausaLeitura > 0)
-        {
-            await Page.WaitForTimeoutAsync(PausaLeitura);
-        }
     }
 }
