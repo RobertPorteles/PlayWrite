@@ -257,6 +257,22 @@ public class MensagensErroFaturamentoTests : LogisticaTestBase
         AssertMensagem(resposta, 400, $"A fatura #{fatura} está emitida e não pode ser emitida.");
     }
 
+    /// <summary>Pela API: na tela o wizard já barra o valor negativo com o mesmo texto antes de salvar.</summary>
+    [Test]
+    public async Task CriarOsComValorDeRotaNegativoDevePedirValorMaiorOuIgualAZero()
+    {
+        var apoio = await Logistica.CriarDadosApoioAsync(EmpresaCarga);
+        var solicitacao = await Logistica.CriarSolicitacaoAsync(apoio, LogisticaDataFactory.Nome("Faturamento"));
+
+        var resposta = await Api.EnviarAsync("POST", LogisticaRecursos.OrdemServico, new JsonObject
+        {
+            ["solicitacaoLogisticaId"] = solicitacao.Id(),
+            ["rota"] = new JsonObject { ["nome"] = LogisticaDataFactory.Nome("Rota"), ["valor"] = -1 },
+        });
+
+        AssertMensagem(resposta, 400, "Informe um valor de rota maior ou igual a zero.");
+    }
+
     /// <summary>Sem tela (a OS sai junto com a programação); antes, o DELETE da OS devolvia 500 sem texto.</summary>
     [Test]
     public async Task ExcluirOsFaturadaPelaApiDeveDizerEmQualFaturaEla()

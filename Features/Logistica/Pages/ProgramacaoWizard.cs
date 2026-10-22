@@ -109,6 +109,24 @@ public sealed class ProgramacaoWizard(IPage page)
         return (veiculoEscolhido, await EscolherAsync(passo, "Motorista", motorista));
     }
 
+    /// <summary>Campo "Valor da rota" do passo Execução (base do faturamento da OS).</summary>
+    public ILocator CampoValorDaRota => PassoAtivo.GetByLabel("Valor da rota", new() { Exact = true });
+
+    /// <summary>Liga "Definir ordem de serviço agora" sem escolher o par: a OS nasce sem veículo e motorista.</summary>
+    public async Task LigarOrdemServicoAsync()
+    {
+        var chave = PassoAtivo.GetByLabel("Definir ordem de serviço agora", new() { Exact = true });
+        if (!await chave.IsCheckedAsync())
+        {
+            await chave.CheckAsync();
+        }
+
+        await Expect(CampoValorDaRota).ToBeVisibleAsync();
+    }
+
+    public Task InformarValorDaRotaAsync(decimal valor) =>
+        CampoValorDaRota.FillAsync(valor.ToString(CultureInfo.InvariantCulture));
+
     /// <summary>Salva, confere que o alerta não é de erro e espera o wizard fechar. Devolve a mensagem exibida.</summary>
     public async Task<string> SalvarAsync()
     {

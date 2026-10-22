@@ -15,8 +15,8 @@ namespace PlaywrightTests.Features.Logistica.Tests;
 /// Para assistir: <c>HEADED=1 SLOWMO_MS=400</c> (navegador visível) ou <c>VIDEO=1</c> (grava em <c>videos/</c>). Nesses
 /// modos cada legenda fica alguns segundos na tela; <c>TUTORIAL_PAUSA_MS</c> muda esse tempo.
 /// <para>
-/// A OS realizada nasce pela API porque hoje nenhuma tela preenche o valor da rota (pendência registrada na spec).
-/// A fatura aprovada fica no banco: fatura não tem DELETE, é histórico.
+/// A programação e a viagem finalizada nascem pela API (o wizard e a finalização da viagem têm testes próprios); o valor
+/// da rota é informado pela tela. A fatura aprovada fica no banco: fatura não tem DELETE, é histórico.
 /// </para>
 /// </summary>
 [TestFixture]
@@ -32,21 +32,27 @@ public class TutorialFaturamentoTests : LogisticaTestBase
     public async Task TutorialDoFaturamentoDaOsAteAFaturaAprovada()
     {
         // Preparação: cliente, centro de custo, solicitante, passageiro, locais e uma OS já realizada (viagem
-        // finalizada) com valor de rota de R$ 782,12 — o exemplo do Koepe.
+        // finalizada), ainda sem valor de rota.
         var apoio = await Logistica.CriarDadosApoioAsync(EmpresaCarga);
-        var os = await Logistica.CriarOrdemServicoFaturavelAsync(apoio, valorRota: 782.12m);
+        var os = await Logistica.CriarOrdemServicoFaturavelAsync(apoio, valorRota: null);
         var dia = LogisticaDataFactory.DataViagem;
         var menu = new AppMenu(Page);
         var alerta = new SweetAlert(Page);
 
         await LoginNaUiAsync();
 
-        // 1. Achar a programação.
+        // 1. Achar a programação e informar o valor da rota.
         await menu.NavegarAsync("Planejamento", "Programações", ProgramacoesPage.Url);
         await NarrarAsync("1. Programações",
-            $"A OS #{os.OrdemServicoId} já foi realizada: a viagem terminou. Ela é do cliente {apoio.NomeCliente}. Vamos abrir o detalhe dela pelo menu Ações → Ver detalhes.");
+            $"A OS #{os.OrdemServicoId} é do cliente {apoio.NomeCliente} e já foi realizada: a viagem terminou. Mas ela está sem valor de rota, e sem ele não pode ser faturada. Vamos informar o valor pelo menu Ações → Enviar OS.");
         var programacoes = new ProgramacoesPage(Page);
         var linha = await programacoes.LocalizarLinhaAsync(apoio.NomeCliente);
+        var wizard = await programacoes.EnviarOrdemServicoAsync(linha);
+        await wizard.InformarValorDaRotaAsync(782.12m);
+        await NarrarAsync("1. Valor da rota",
+            "No passo Execução fica o Valor da rota: a cotação do serviço para o cliente, R$ 782,12. Ele é a base do faturamento e vai ao Drake na confirmação. Dá para informar ao criar a OS ou depois, enquanto ela não estiver numa fatura emitida.");
+        await wizard.SalvarAsync();
+        linha = await programacoes.LocalizarLinhaAsync(apoio.NomeCliente);
         await programacoes.AbrirAcaoAsync(linha, "Ver detalhes");
         await Expect(Page).ToHaveURLAsync(new Regex($"/logistica/programacoes/{os.SolicitacaoId}$"));
 

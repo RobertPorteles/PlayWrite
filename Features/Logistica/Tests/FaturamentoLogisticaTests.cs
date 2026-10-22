@@ -1,6 +1,7 @@
 using System.Text.RegularExpressions;
 using Microsoft.Playwright;
 using PlaywrightTests.Features.Logistica.Data;
+using PlaywrightTests.Features.Logistica.Pages;
 using PlaywrightTests.Shared.Api;
 using PlaywrightTests.Shared.Components;
 using static Microsoft.Playwright.Assertions;
@@ -65,5 +66,55 @@ public class FaturamentoLogisticaTests : LogisticaTestBase
 
         await Api.EnviarAsync("PATCH", $"{Faturamento}/Fatura/{fatura}/Cancelar",
             new System.Text.Json.Nodes.JsonObject { ["motivo"] = "Limpeza do teste E2E" });
+    }
+
+    /// <summary>
+    /// O valor da rota é informado no passo Execução do wizard. Antes não havia campo, e salvar a OS pela tela gravava
+    /// o valor vazio: nenhuma OS criada pela tela podia ser faturada.
+    /// </summary>
+    [Test]
+    public async Task OsCriadaPeloWizardComValorDaRotaPodeSerFaturada()
+    {
+        var apoio = await Logistica.CriarDadosApoioAsync(EmpresaCarga);
+        await LoginNaUiAsync();
+        var programacoes = new ProgramacoesPage(Page);
+        await programacoes.AbrirAsync();
+
+        var wizard = await programacoes.NovaProgramacaoAsync();
+        await wizard.PreencherDadosGeraisAsync(apoio);
+        await wizard.ProximoAsync(2);
+        await wizard.AdicionarItemAsync(apoio);
+        await wizard.ProximoAsync(3);
+        await wizard.ProximoAsync(4);
+        await wizard.LigarOrdemServicoAsync();
+        await wizard.InformarValorDaRotaAsync(150.75m);
+        await wizard.SalvarAsync();
+
+        var solicitacao = await Logistica.BuscarSolicitacaoPorClienteAsync(apoio.Cliente.Id());
+        var ordemServicoId = solicitacao!["ordemServico"]!.Id();
+        Assert.That(await ValorBaseAsync(ordemServicoId), Is.EqualTo(150.75m));
+
+        // Editar pela tela recarrega o valor e o reenvia: antes, a edição apagava o valor da rota.
+        var linha = await programacoes.LocalizarLinhaAsync(apoio.NomeCliente);
+        await programacoes.EnviarOrdemServicoAsync(linha);
+        await Expect(wizard.CampoValorDaRota).ToHaveValueAsync("150.75");
+        await wizard.InformarValorDaRotaAsync(160m);
+        await wizard.SalvarAsync();
+        Assert.That(await ValorBaseAsync(ordemServicoId), Is.EqualTo(160m));
+
+        await Logistica.RealizarViagemAsync(solicitacao);
+        var medicao = await Api.GetAsync(Medicao(apoio.Cliente.Id()));
+        var linhaMedicao = medicao!.AsArray().Single(x => x!["ordemServicoId"].ComoLong() == ordemServicoId);
+        Assert.That(linhaMedicao!["valorTotal"]!.GetValue<decimal>(), Is.EqualTo(160m));
+    }
+
+    private async Task<decimal> ValorBaseAsync(long ordemServicoId) =>
+        (await Api.GetAsync($"{Faturamento}/OrdemServico/{ordemServicoId}/Valor"))!["valorBase"]!.GetValue<decimal>();
+
+    private static string Medicao(long clienteId)
+    {
+        var dia = LogisticaDataFactory.DataViagem;
+        return $"{Faturamento}/Medicao?clienteId={clienteId}" +
+               $"&dataInicio={LogisticaDataFactory.FormatarData(dia.AddDays(-1))}&dataFim={LogisticaDataFactory.FormatarData(dia.AddDays(1))}";
     }
 }

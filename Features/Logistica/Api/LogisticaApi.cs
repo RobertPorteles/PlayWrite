@@ -110,18 +110,24 @@ public sealed class LogisticaApi(ApiClient api, CleanupTracker cleanup)
 
         if (realizada)
         {
-            var viagem = await CriarViagemIniciadaAsync(solicitacao, Fabrica.Nome("Viagem"));
-            foreach (var item in viagem["itens"]!.AsArray())
-            {
-                await api.PostAsync($"{LogisticaRecursos.ViagemLogistica}/FinalizarItem", new JsonObject
-                {
-                    ["viagemLogisticaId"] = viagem.Id(),
-                    ["viagemLogisticaItemId"] = item.Id(),
-                });
-            }
+            await RealizarViagemAsync(solicitacao);
         }
 
         return new OrdemServicoFaturavel(solicitacao, solicitacao["ordemServico"]!.Id());
+    }
+
+    /// <summary>Cria a viagem da programação (com OS) e finaliza item a item, como na tela de Viagem Logística.</summary>
+    public async Task RealizarViagemAsync(JsonNode solicitacao)
+    {
+        var viagem = await CriarViagemIniciadaAsync(solicitacao, Fabrica.Nome("Viagem"));
+        foreach (var item in viagem["itens"]!.AsArray())
+        {
+            await api.PostAsync($"{LogisticaRecursos.ViagemLogistica}/FinalizarItem", new JsonObject
+            {
+                ["viagemLogisticaId"] = viagem.Id(),
+                ["viagemLogisticaItemId"] = item.Id(),
+            });
+        }
     }
 
     /// <summary>Encontra pela API um registro criado pela tela e o registra no cleanup (rede de segurança se o teste falhar).</summary>
